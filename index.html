@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Prompt Forge</title>
+  <link rel="icon" href="favicon.ico" sizes="any">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
@@ -428,11 +429,17 @@
           </section>
 
           <section class="section-block">
-            <div class="section-title"><i class="bi bi-list-check"></i> Требования</div>
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+              <div class="section-title mb-0"><i class="bi bi-list-check"></i> Объем работ</div>
+              <button class="btn btn-outline-soft" id="addWorkItem" type="button"><i class="bi bi-plus-lg"></i> Добавить пункт</button>
+            </div>
             <div class="row g-3">
               <div class="col-12">
-                <label class="form-label" for="requirements">Функциональные требования <span class="required-badge">обязательно</span></label>
-                <textarea class="form-control prompt-field" id="requirements" rows="5" required placeholder="Каждое требование можно писать с новой строки"></textarea>
+                <label class="form-label" for="requirements">Что нужно изменить <span class="required-badge">обязательно</span></label>
+                <textarea class="form-control prompt-field" id="requirements" rows="5" required placeholder="Для простого багфикса достаточно описать здесь: где проблема, что должно измениться, что не трогать"></textarea>
+              </div>
+              <div class="col-12">
+                <div id="workItemsList" class="d-grid gap-3"></div>
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="acceptance">Критерии приемки</label>
@@ -587,7 +594,7 @@
         </div>
         <div class="modal-body">
           <div class="small muted mb-3">Отмеченные поля будут очищены. Снимите галочку с полей, которые нужно оставить.</div>
-          <div class="row g-2" id="clearPromptFields"></div>
+          <div class="d-grid gap-3" id="clearPromptFields"></div>
         </div>
         <div class="modal-footer border-secondary">
           <button type="button" class="btn btn-outline-soft" data-bs-dismiss="modal">Отмена</button>
@@ -619,6 +626,7 @@
 
     const state = {
       files: [],
+      workItems: [],
       customConstraints: [],
       customStyles: [],
       customResponseRules: [],
@@ -639,7 +647,7 @@
     const requiredPromptFields = [
       { id: 'goal', label: 'цель' },
       { id: 'desiredState', label: 'ожидаемый результат' },
-      { id: 'requirements', label: 'требования' }
+      { id: 'requirements', label: 'объем работ' }
     ];
     const savedFieldIds = [
       'goal',
@@ -735,6 +743,10 @@
           path: $(`#${item.pathId}`)?.value || '',
           description: $(`#${item.descriptionId}`)?.value || ''
         })),
+        workItems: state.workItems.map(item => ({
+          title: $(`#${item.titleId}`)?.value || '',
+          details: $(`#${item.detailsId}`)?.value || ''
+        })),
         customConstraints: customValues(state.customConstraints),
         customStyles: customValues(state.customStyles),
         customResponseRules: customValues(state.customResponseRules)
@@ -761,6 +773,7 @@
       });
 
       (savedState.files || []).forEach(item => addFile(item.path || '', item.description || ''));
+      (savedState.workItems || []).forEach(item => addWorkItem(item.title || '', item.details || '', false));
       (savedState.customConstraints || []).forEach(value => addCustom(state.customConstraints, 'customConstraints', 'Кастомное ограничение', value, false));
       (savedState.customStyles || []).forEach(value => addCustom(state.customStyles, 'customStyles', 'Кастомная просьба к стилю кода', value, false));
       (savedState.customResponseRules || []).forEach(value => addCustom(state.customResponseRules, 'customResponseRules', 'Кастомное правило формата ответа', value, false));
@@ -791,6 +804,28 @@
     function textBlock(title, value) {
       const text = value.trim();
       return text ? `## ${title}\n${text}` : '';
+    }
+
+    function workItemBlock(item, index) {
+      const title = $(`#${item.titleId}`)?.value.trim();
+      const details = $(`#${item.detailsId}`)?.value.trim();
+      if (!title && !details) return '';
+
+      if (title && details) return `### ${index + 1}. ${title}\n${details}`;
+      if (title) return `### ${index + 1}. ${title}`;
+      return details;
+    }
+
+    function scopeBlock(lines, workItems) {
+      const parts = [];
+      if (lines.length) parts.push(lines.map(line => line.trimEnd()).join('\n'));
+
+      const itemBlocks = workItems
+        .map(workItemBlock)
+        .filter(Boolean);
+      if (itemBlocks.length) parts.push(itemBlocks.join('\n\n'));
+
+      return parts.length ? `## Объем работ\n${parts.join('\n\n')}` : '';
     }
 
     function syncCustomSelect(select, shouldFocus = true) {
@@ -847,7 +882,7 @@
 
       const intro = [
         'Ты — опытный инженер-программист. Помоги решить задачу по коду.',
-        'Сначала внимательно учитывай цель, контекст, требования, ограничения и стиль кода.'
+        'Сначала внимательно учитывай цель, контекст, объем работ, ограничения и стиль кода.'
       ].join('\n');
 
       const meta = [
@@ -855,7 +890,7 @@
         fieldValue('stack') ? `Стек / окружение: ${fieldValue('stack')}` : ''
       ].filter(Boolean);
 
-      const requirements = splitContentLines(rawFieldValue('requirements'));
+      const scope = splitContentLines(rawFieldValue('requirements'));
       const acceptance = splitContentLines(rawFieldValue('acceptance'));
       const tests = splitContentLines(rawFieldValue('tests'));
 
@@ -866,7 +901,7 @@
         textBlock('Текущее состояние', fieldValue('currentState')),
         textBlock('Ожидаемый результат', fieldValue('desiredState')),
         dashedLinesBlock('Файлы для контекста', files),
-        linesBlock('Требования', requirements),
+        scopeBlock(scope, state.workItems),
         dashedLinesBlock('Ограничения', constraints),
         dashedLinesBlock('Стиль кода', styles),
         linesBlock('Критерии приемки', acceptance),
@@ -938,6 +973,47 @@
       generatePrompt();
     }
 
+    function renderWorkItem(item) {
+      const node = document.createElement('div');
+      node.className = 'row-card';
+      node.dataset.itemId = item.id;
+      node.innerHTML = `
+        <div class="row g-2 align-items-start">
+          <div class="col-md-5">
+            <label class="form-label" for="${item.titleId}">Пункт</label>
+            <input class="form-control prompt-field" id="${item.titleId}" placeholder="Например: исправить сохранение формы">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="${item.detailsId}">Детали</label>
+            <textarea class="form-control prompt-field" id="${item.detailsId}" rows="3" placeholder="Что именно сделать, какие сценарии учесть, какие границы не переходить"></textarea>
+          </div>
+          <div class="col-md-1 d-flex justify-content-md-end pt-md-4">
+            <button class="btn btn-outline-danger btn-icon mt-md-2" type="button" title="Удалить" aria-label="Удалить"><i class="bi bi-x-lg"></i></button>
+          </div>
+        </div>
+      `;
+      $('button', node).addEventListener('click', () => {
+        state.workItems = state.workItems.filter(workItem => workItem.id !== item.id);
+        node.remove();
+        generatePrompt();
+      });
+      $('#workItemsList').appendChild(node);
+    }
+
+    function addWorkItem(title = '', details = '', shouldFocus = true) {
+      const item = {
+        id: uid('workItem'),
+        titleId: uid('workItemTitle'),
+        detailsId: uid('workItemDetails')
+      };
+      state.workItems.push(item);
+      renderWorkItem(item);
+      $(`#${item.titleId}`).value = title;
+      $(`#${item.detailsId}`).value = details;
+      if (shouldFocus) $(`#${item.titleId}`).focus();
+      generatePrompt();
+    }
+
     function renderCustomInput(item, list, containerId, placeholder) {
       const row = document.createElement('div');
       row.className = 'input-group';
@@ -988,71 +1064,105 @@
 
     function buildClearPromptItems() {
       const items = [];
-      const addItem = (label, clear) => items.push({ id: uid('clear'), label, clear });
-      const addField = (id, label) => {
-        if ($(`#${id}`)) addItem(label, () => resetField(id));
+      const groups = {
+        goal: { label: 'Цель и задача', icon: 'bi-bullseye' },
+        files: { label: 'Файлы для контекста', icon: 'bi-file-earmark-code' },
+        scope: { label: 'Объем работ', icon: 'bi-list-check' },
+        constraints: { label: 'Ограничения', icon: 'bi-shield-lock' },
+        style: { label: 'Стиль кода', icon: 'bi-braces' },
+        response: { label: 'Формат результата', icon: 'bi-box-arrow-up-right' }
       };
-      const addCheckboxes = (containerId, groupLabel) => {
+      const addItem = (groupKey, label, clear) => {
+        const group = groups[groupKey];
+        items.push({ id: uid('clear'), groupKey, group: group.label, icon: group.icon, label, clear });
+      };
+      const addField = (groupKey, id, label) => {
+        if ($(`#${id}`)) addItem(groupKey, label, () => resetField(id));
+      };
+      const addCheckboxes = (groupKey, containerId) => {
         $$('input[type="checkbox"].prompt-field', $(`#${containerId}`)).forEach(input => {
           const label = $(`label[for="${input.id}"]`)?.textContent.trim() || input.dataset.label || input.id;
-          addItem(`${groupLabel}: ${label}`, () => {
+          addItem(groupKey, label, () => {
             input.checked = input.defaultChecked;
           });
         });
       };
-      const addDynamicInputs = (list, containerId, label) => {
+      const addDynamicInputs = (groupKey, list, containerId, label) => {
         list.forEach((item, index) => {
           const value = $(`#${item.inputId}`)?.value.trim();
-          addItem(`${label} ${index + 1}${value ? `: ${value}` : ''}`, () => removeDynamicItem(list, containerId, item));
+          addItem(groupKey, `${label} ${index + 1}${value ? `: ${value}` : ''}`, () => removeDynamicItem(list, containerId, item));
         });
       };
 
-      addField('goal', 'Цель и задача: Что нужно сделать');
-      addField('projectType', 'Цель и задача: Тип проекта');
+      addField('goal', 'goal', 'Что нужно сделать');
+      addField('goal', 'projectType', 'Тип проекта');
       if (shouldShowCustomSelectField('projectType', 'projectTypeCustom')) {
-        addField('projectTypeCustom', 'Цель и задача: свой тип проекта');
+        addField('goal', 'projectTypeCustom', 'Свой тип проекта');
       }
-      addField('stack', 'Цель и задача: Стек / окружение');
-      addField('currentState', 'Цель и задача: Текущее состояние');
-      addField('desiredState', 'Цель и задача: Ожидаемый результат');
+      addField('goal', 'stack', 'Стек / окружение');
+      addField('goal', 'currentState', 'Текущее состояние');
+      addField('goal', 'desiredState', 'Ожидаемый результат');
 
       state.files.forEach((item, index) => {
         const path = $(`#${item.pathId}`)?.value.trim();
-        addItem(`Файл для контекста ${index + 1}${path ? `: ${path}` : ''}`, () => removeDynamicItem(state.files, 'filesList', item));
+        addItem('files', `Файл ${index + 1}${path ? `: ${path}` : ''}`, () => removeDynamicItem(state.files, 'filesList', item));
       });
 
-      addField('requirements', 'Требования: Функциональные требования');
-      addField('acceptance', 'Требования: Критерии приемки');
-      addField('tests', 'Требования: Проверка и тесты');
-      addCheckboxes('constraintsBase', 'Ограничение');
-      addDynamicInputs(state.customConstraints, 'customConstraints', 'Кастомное ограничение');
-      addCheckboxes('styleBase', 'Стиль кода');
-      addDynamicInputs(state.customStyles, 'customStyles', 'Кастомная просьба к стилю кода');
-      addField('responseFormat', 'Формат результата: Что вернуть в ответе');
+      addField('scope', 'requirements', 'Что нужно изменить');
+      state.workItems.forEach((item, index) => {
+        const title = $(`#${item.titleId}`)?.value.trim();
+        addItem('scope', `Пункт ${index + 1}${title ? `: ${title}` : ''}`, () => removeDynamicItem(state.workItems, 'workItemsList', item));
+      });
+      addField('scope', 'acceptance', 'Критерии приемки');
+      addField('scope', 'tests', 'Проверка и тесты');
+      addCheckboxes('constraints', 'constraintsBase');
+      addDynamicInputs('constraints', state.customConstraints, 'customConstraints', 'Кастомное ограничение');
+      addCheckboxes('style', 'styleBase');
+      addDynamicInputs('style', state.customStyles, 'customStyles', 'Кастомная просьба к стилю кода');
+      addField('response', 'responseFormat', 'Что вернуть в ответе');
       if (shouldShowCustomSelectField('responseFormat', 'responseFormatCustom')) {
-        addField('responseFormatCustom', 'Формат результата: свой формат ответа');
+        addField('response', 'responseFormatCustom', 'Свой формат ответа');
       }
-      addField('tone', 'Формат результата: Тон ответа');
+      addField('response', 'tone', 'Тон ответа');
       if (shouldShowCustomSelectField('tone', 'toneCustom')) {
-        addField('toneCustom', 'Формат результата: свой тон ответа');
+        addField('response', 'toneCustom', 'Свой тон ответа');
       }
-      addCheckboxes('responseRules', 'Правило ответа');
-      addDynamicInputs(state.customResponseRules, 'customResponseRules', 'Кастомное правило ответа');
-      addField('extra', 'Формат результата: Дополнительный контекст');
+      addCheckboxes('response', 'responseRules');
+      addDynamicInputs('response', state.customResponseRules, 'customResponseRules', 'Кастомное правило ответа');
+      addField('response', 'extra', 'Дополнительный контекст');
 
       return items;
     }
 
+    function renderClearPromptItems(items) {
+      const groups = items.reduce((result, item) => {
+        if (!result.has(item.groupKey)) {
+          result.set(item.groupKey, { label: item.group, icon: item.icon, items: [] });
+        }
+        result.get(item.groupKey).items.push(item);
+        return result;
+      }, new Map());
+
+      return Array.from(groups.values()).map(group => `
+        <section class="technical-panel p-3">
+          <div class="section-title mb-3"><i class="bi ${group.icon}"></i> ${escapeHtml(group.label)}</div>
+          <div class="row g-2">
+            ${group.items.map(item => `
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="${item.id}" value="${item.id}" checked>
+                  <label class="form-check-label" for="${item.id}">${escapeHtml(item.label)}</label>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </section>
+      `).join('');
+    }
+
     function openClearPromptModal() {
       clearPromptItems = buildClearPromptItems();
-      $('#clearPromptFields').innerHTML = clearPromptItems.map(item => `
-        <div class="col-md-6">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="${item.id}" value="${item.id}" checked>
-            <label class="form-check-label" for="${item.id}">${escapeHtml(item.label)}</label>
-          </div>
-        </div>
-      `).join('');
+      $('#clearPromptFields').innerHTML = renderClearPromptItems(clearPromptItems);
       bootstrap.Modal.getOrCreateInstance($('#clearPromptModal')).show();
     }
 
@@ -1251,6 +1361,7 @@
     document.addEventListener('keydown', handleTextareaKeydown);
 
     $('#addFile').addEventListener('click', () => addFile());
+    $('#addWorkItem').addEventListener('click', () => addWorkItem());
     $('#addConstraint').addEventListener('click', () => addCustom(state.customConstraints, 'customConstraints', 'Кастомное ограничение'));
     $('#addStyle').addEventListener('click', () => addCustom(state.customStyles, 'customStyles', 'Кастомная просьба к стилю кода'));
     $('#addResponseRule').addEventListener('click', () => addCustom(state.customResponseRules, 'customResponseRules', 'Кастомное правило формата ответа'));
