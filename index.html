@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="ru" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prompt Forge</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --app-bg: #0c0f14;
+      --panel: #121821;
+      --panel-soft: #161e29;
+      --line: #273142;
+      --text: #e8edf4;
+      --muted: #8f9bad;
+      --accent: #2fbf9b;
+      --accent-2: #4b9eff;
+      --danger: #ff6b6b;
+      --code-bg: #080b10;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      background: var(--app-bg);
+      color: var(--text);
+    }
+
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(380px, 42vw);
+    }
+
+    .workspace {
+      min-width: 0;
+      border-right: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(75, 158, 255, .08), rgba(75, 158, 255, 0) 260px),
+        var(--app-bg);
+    }
+
+    .preview-pane {
+      min-width: 0;
+      background: #0a0d12;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(12, 15, 20, .92);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(47, 191, 155, .45);
+      background: rgba(47, 191, 155, .1);
+      color: var(--accent);
+      border-radius: 8px;
+      flex: 0 0 auto;
+    }
+
+    .section-block {
+      border-bottom: 1px solid var(--line);
+      padding: 22px 24px;
+    }
+
+    .section-block:last-child {
+      border-bottom: 0;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      color: #f4f7fb;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .section-title i {
+      color: var(--accent-2);
+    }
+
+    .form-control,
+    .form-select {
+      background-color: #0f141c;
+      border-color: #303a4c;
+      color: var(--text);
+      border-radius: 8px;
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 .2rem rgba(75, 158, 255, .16);
+    }
+
+    .form-control::placeholder {
+      color: #667286;
+    }
+
+    .input-group-text {
+      background-color: #151c27;
+      border-color: #303a4c;
+      color: var(--muted);
+    }
+
+    .form-label,
+    .form-check-label {
+      color: #dce4ef;
+    }
+
+    .form-text,
+    .muted {
+      color: var(--muted) !important;
+    }
+
+    .required-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 20px;
+      margin-left: 8px;
+      padding: 2px 7px;
+      border: 1px solid rgba(255, 107, 107, .45);
+      border-radius: 999px;
+      color: #ffc1c1;
+      background: rgba(255, 107, 107, .09);
+      font-size: .7rem;
+      font-weight: 700;
+      line-height: 1;
+      vertical-align: middle;
+    }
+
+    .required-hint {
+      color: #ffc1c1;
+      font-size: .82rem;
+    }
+
+    .form-control.required-empty,
+    .form-select.required-empty {
+      border-color: rgba(255, 107, 107, .65);
+      box-shadow: 0 0 0 .16rem rgba(255, 107, 107, .08);
+    }
+
+    .nav-pills {
+      gap: 8px;
+    }
+
+    .nav-pills .nav-link {
+      border: 1px solid var(--line);
+      color: #c5cedd;
+      background: #111720;
+      border-radius: 8px;
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-pills .nav-link.active {
+      color: #04100d;
+      background: var(--accent);
+      border-color: var(--accent);
+      font-weight: 700;
+    }
+
+    .technical-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .row-card {
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .btn {
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 38px;
+      white-space: nowrap;
+    }
+
+    .btn-icon {
+      width: 38px;
+      padding-inline: 0;
+      flex: 0 0 auto;
+    }
+
+    .btn-accent {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #04100d;
+      font-weight: 700;
+    }
+
+    .btn-accent:hover {
+      background: #3dd0ad;
+      border-color: #3dd0ad;
+      color: #04100d;
+    }
+
+    .btn-outline-soft {
+      border-color: #344054;
+      color: #d4dce8;
+      background: #111720;
+    }
+
+    .btn-outline-soft:hover {
+      border-color: #4b9eff;
+      color: #ffffff;
+      background: rgba(75, 158, 255, .1);
+    }
+
+    .form-check-input {
+      background-color: #0f141c;
+      border-color: #4a5568;
+    }
+
+    .form-check-input:checked {
+      background-color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .preview-sticky {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .preview-header {
+      flex: 0 0 auto;
+      border-bottom: 1px solid var(--line);
+      padding: 16px 18px;
+      background: rgba(10, 13, 18, .96);
+    }
+
+    .preview-output {
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      resize: none;
+      border: 0;
+      border-radius: 0;
+      padding: 18px;
+      background:
+        linear-gradient(rgba(75, 158, 255, .04) 1px, transparent 1px),
+        var(--code-bg);
+      background-size: 100% 28px;
+      color: #d8f7eb;
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre;
+    }
+
+    .preview-output:focus {
+      outline: 0;
+      box-shadow: inset 0 0 0 1px rgba(75, 158, 255, .45);
+    }
+
+    .token-badge {
+      color: #aeb8c8;
+      background: #111720;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: .78rem;
+      white-space: nowrap;
+    }
+
+    .question-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .answer-output {
+      min-height: 160px;
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .empty-state {
+      color: var(--muted);
+      border: 1px dashed #344054;
+      border-radius: 8px;
+      padding: 14px;
+      background: rgba(255, 255, 255, .015);
+    }
+
+    @media (max-width: 1100px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .workspace {
+        border-right: 0;
+      }
+
+      .preview-sticky {
+        position: relative;
+        height: 66vh;
+        border-top: 1px solid var(--line);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .section-block {
+        padding: 18px 14px;
+      }
+
+      .topbar {
+        position: relative;
+      }
+
+      .nav-pills .nav-link {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .preview-header {
+        padding: 14px;
+      }
+
+      .preview-output {
+        font-size: 12px;
+        padding: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <section class="workspace">
+      <header class="topbar">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 px-3 px-md-4 py-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="brand-mark" aria-hidden="true"><i class="bi bi-terminal"></i></div>
+            <div>
+              <h1 class="h5 mb-0">Prompt Forge</h1>
+              <div class="small muted">Генератор промптов для задач по коду</div>
+            </div>
+          </div>
+          <ul class="nav nav-pills" id="modeTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="builder-tab" data-bs-toggle="pill" data-bs-target="#builder" type="button" role="tab" aria-controls="builder" aria-selected="true">
+                <i class="bi bi-sliders"></i> Промпт
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="answers-tab" data-bs-toggle="pill" data-bs-target="#answers" type="button" role="tab" aria-controls="answers" aria-selected="false">
+                <i class="bi bi-chat-square-text"></i> Ответить на вопросы
+              </button>
+            </li>
+          </ul>
+        </div>
+      </header>
+
+      <div class="tab-content">
+        <div class="tab-pane fade show active" id="builder" role="tabpanel" aria-labelledby="builder-tab" tabindex="0">
+          <section class="section-block">
+            <div class="section-title"><i class="bi bi-bullseye"></i> Цель и задача</div>
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label" for="goal">Что нужно сделать <span class="required-badge">обязательно</span></label>
+                <textarea class="form-control prompt-field" id="goal" rows="4" required placeholder="Например: реализовать экспорт отчета в CSV и добавить тесты"></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="projectType">Тип проекта</label>
+                <select class="form-select prompt-field" id="projectType">
+                  <option value="">Не указывать</option>
+                  <option>Frontend</option>
+                  <option>Backend</option>
+                  <option>Fullstack</option>
+                  <option>CLI</option>
+                  <option>Library</option>
+                  <option>Test/QA</option>
+                  <option>DevOps</option>
+                  <option value="__custom__">Другое...</option>
+                </select>
+                <input class="form-control prompt-field custom-select-input mt-2 d-none" id="projectTypeCustom" data-select-owner="projectType" placeholder="Свой тип проекта">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="stack">Стек / окружение</label>
+                <input class="form-control prompt-field" id="stack" placeholder="React, Django, PostgreSQL, Docker">
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="currentState">Текущее состояние</label>
+                <textarea class="form-control prompt-field" id="currentState" rows="3" placeholder="Что уже есть, где проблема, какое поведение сейчас"></textarea>
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="desiredState">Ожидаемый результат <span class="required-badge">обязательно</span></label>
+                <textarea class="form-control prompt-field" id="desiredState" rows="3" required placeholder="Как должно работать после выполнения задачи"></textarea>
+              </div>
+            </div>
+          </section>
+
+          <section class="section-block">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+              <div class="section-title mb-0"><i class="bi bi-file-earmark-code"></i> Файлы для контекста</div>
+              <button class="btn btn-outline-soft" id="addFile" type="button"><i class="bi bi-plus-lg"></i> Добавить файл</button>
+            </div>
+            <div id="filesList" class="d-grid gap-3"></div>
+          </section>
+
+          <section class="section-block">
+            <div class="section-title"><i class="bi bi-list-check"></i> Требования</div>
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label" for="requirements">Функциональные требования <span class="required-badge">обязательно</span></label>
+                <textarea class="form-control prompt-field" id="requirements" rows="5" required placeholder="Каждое требование можно писать с новой строки"></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="acceptance">Критерии приемки</label>
+                <textarea class="form-control prompt-field" id="acceptance" rows="4" placeholder="Что должно быть верно, чтобы считать задачу готовой"></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="tests">Проверка и тесты</label>
+                <textarea class="form-control prompt-field" id="tests" rows="4" placeholder="Какие тесты добавить или какие команды выполнить"></textarea>
+              </div>
+            </div>
+          </section>
+
+          <section class="section-block">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+              <div class="section-title mb-0"><i class="bi bi-shield-lock"></i> Ограничения</div>
+              <button class="btn btn-outline-soft" id="addConstraint" type="button"><i class="bi bi-plus-lg"></i> Добавить</button>
+            </div>
+            <div class="technical-panel p-3">
+              <div class="row g-3" id="constraintsBase"></div>
+              <div id="customConstraints" class="d-grid gap-2 mt-3"></div>
+            </div>
+          </section>
+
+          <section class="section-block">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+              <div class="section-title mb-0"><i class="bi bi-braces"></i> Стиль кода</div>
+              <button class="btn btn-outline-soft" id="addStyle" type="button"><i class="bi bi-plus-lg"></i> Добавить</button>
+            </div>
+            <div class="technical-panel p-3">
+              <div class="row g-3" id="styleBase"></div>
+              <div id="customStyles" class="d-grid gap-2 mt-3"></div>
+            </div>
+          </section>
+
+          <section class="section-block">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+              <div class="section-title mb-0"><i class="bi bi-box-arrow-up-right"></i> Формат результата</div>
+              <button class="btn btn-outline-soft" id="addResponseRule" type="button"><i class="bi bi-plus-lg"></i> Добавить правило</button>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="responseFormat">Что вернуть в ответе</label>
+                <select class="form-select prompt-field" id="responseFormat">
+                  <option>Краткий план, изменения, тесты</option>
+                  <option>Сначала уточняющие вопросы</option>
+                  <option>Сразу код и пояснение</option>
+                  <option>Code review: сначала риски и баги</option>
+                  <option>Пошаговый план без правок</option>
+                  <option value="__custom__">Другое...</option>
+                </select>
+                <input class="form-control prompt-field custom-select-input mt-2 d-none" id="responseFormatCustom" data-select-owner="responseFormat" placeholder="Свой формат ответа">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="tone">Тон ответа</label>
+                <select class="form-select prompt-field" id="tone">
+                  <option>Кратко и по делу</option>
+                  <option>Подробно с объяснением решений</option>
+                  <option>Как senior code review</option>
+                  <option>Без лишней теории</option>
+                  <option value="__custom__">Другое...</option>
+                </select>
+                <input class="form-control prompt-field custom-select-input mt-2 d-none" id="toneCustom" data-select-owner="tone" placeholder="Свой тон ответа">
+              </div>
+              <div class="col-12">
+                <div class="technical-panel p-3">
+                  <div class="row g-3" id="responseRules">
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input prompt-field" type="checkbox" id="askIfMissing" data-label="Если информации недостаточно, задай конкретные уточняющие вопросы перед реализацией." checked>
+                        <label class="form-check-label" for="askIfMissing">Задавать уточняющие вопросы, если информации недостаточно</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input prompt-field" type="checkbox" id="mentionFilesAndChecks" data-label="Если будешь предлагать изменения, укажи затронутые файлы и способ проверки." checked>
+                        <label class="form-check-label" for="mentionFilesAndChecks">Указывать затронутые файлы и способ проверки</label>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="customResponseRules" class="d-grid gap-2 mt-3"></div>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="extra">Дополнительный контекст</label>
+                <textarea class="form-control prompt-field" id="extra" rows="4" placeholder="Все, что не попало в секции выше"></textarea>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="tab-pane fade" id="answers" role="tabpanel" aria-labelledby="answers-tab" tabindex="0">
+          <section class="section-block">
+            <div class="section-title"><i class="bi bi-question-square"></i> Вопросы</div>
+            <label class="form-label" for="questionsRaw">Вставленные вопросы <span class="required-badge">обязательно</span></label>
+            <textarea class="form-control" id="questionsRaw" rows="8" required placeholder="Каждый вопрос с новой строки"></textarea>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <button class="btn btn-accent" id="parseQuestions" type="button"><i class="bi bi-magic"></i> Разобрать</button>
+              <button class="btn btn-outline-soft" id="clearAnswers" type="button"><i class="bi bi-trash3"></i> Очистить</button>
+            </div>
+          </section>
+
+          <section class="section-block">
+            <div class="section-title"><i class="bi bi-pencil-square"></i> Ответы</div>
+            <div id="questionsList" class="question-grid">
+              <div class="empty-state">Список ответов появится после разбора вопросов.</div>
+            </div>
+          </section>
+
+          <section class="section-block">
+            <div class="section-title"><i class="bi bi-plus-square-dotted"></i> Дополнение к ответу</div>
+            <textarea class="form-control" id="answerExtra" rows="4" placeholder="Кастомный текст, который нужно добавить к готовому ответу"></textarea>
+          </section>
+
+          <section class="section-block">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+              <div class="section-title mb-0"><i class="bi bi-send"></i> Готовый ответ</div>
+              <button class="btn btn-outline-soft" id="copyAnswer" type="button"><i class="bi bi-clipboard"></i> Копировать</button>
+            </div>
+            <textarea class="form-control answer-output" id="answerOutput" readonly></textarea>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <aside class="preview-pane">
+      <div class="preview-sticky">
+        <div class="preview-header">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div>
+              <div class="fw-bold">Готовый промпт</div>
+              <div class="small muted">Обновляется в реальном времени</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <span class="token-badge" id="promptStats">0 символов</span>
+              <span class="token-badge required-hint" id="requiredStats">3 поля</span>
+              <button class="btn btn-outline-soft" id="copyPrompt" type="button"><i class="bi bi-clipboard"></i> Копировать</button>
+            </div>
+          </div>
+        </div>
+        <textarea class="preview-output" id="promptOutput" readonly spellcheck="false"></textarea>
+      </div>
+    </aside>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const baseConstraints = [
+      { id: 'askBeforeChanges', label: 'Не вносить изменения без уточняющих вопросов, если есть неоднозначность', checked: true },
+      { id: 'minimalScope', label: 'Менять только файлы и поведение, относящиеся к задаче', checked: true },
+      { id: 'noBreakingApi', label: 'Не ломать публичные API и существующие сценарии без отдельного согласования', checked: true },
+      { id: 'preserveStyle', label: 'Сохранять текущую архитектуру и стиль проекта', checked: true },
+      { id: 'noDeps', label: 'Не добавлять новые зависимости без обоснования', checked: false },
+      { id: 'noRefactor', label: 'Не делать крупный рефакторинг вне рамок задачи', checked: true }
+    ];
+
+    const baseStyles = [
+      { id: 'solid', label: 'Соблюдать SOLID там, где это уместно', checked: true },
+      { id: 'cleanCode', label: 'Следовать принципам Clean Code: читаемость, простые имена, маленькие функции', checked: true },
+      { id: 'dry', label: 'Убирать значимое дублирование, но не вводить абстракции преждевременно', checked: true },
+      { id: 'typed', label: 'Сохранять строгую типизацию и явные контракты', checked: false },
+      { id: 'errors', label: 'Обрабатывать ошибки явно и предсказуемо', checked: true },
+      { id: 'testsStyle', label: 'Писать тестируемый код с понятными точками проверки', checked: true }
+    ];
+
+    const state = {
+      files: [],
+      customConstraints: [],
+      customStyles: [],
+      customResponseRules: [],
+      questions: []
+    };
+
+    const $ = (selector, root = document) => root.querySelector(selector);
+    const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+
+    const promptOutput = $('#promptOutput');
+    const promptStats = $('#promptStats');
+    const requiredStats = $('#requiredStats');
+    const answerOutput = $('#answerOutput');
+    const requiredPromptFields = [
+      { id: 'goal', label: 'цель' },
+      { id: 'desiredState', label: 'ожидаемый результат' },
+      { id: 'requirements', label: 'требования' }
+    ];
+
+    function uid(prefix) {
+      return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function splitLines(value) {
+      return value
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
+    }
+
+    function fieldValue(id) {
+      const field = $(`#${id}`);
+      if (field?.tagName === 'SELECT' && field.value === '__custom__') {
+        return $(`#${id}Custom`)?.value.trim() || '';
+      }
+      return field?.value.trim() || '';
+    }
+
+    function checkedValues(containerId) {
+      return $$('input[type="checkbox"]:checked', $(`#${containerId}`))
+        .map(input => input.dataset.label)
+        .filter(Boolean);
+    }
+
+    function customValues(list) {
+      return list
+        .map(item => $(`#${item.inputId}`)?.value.trim())
+        .filter(Boolean);
+    }
+
+    function linesBlock(title, lines) {
+      if (!lines.length) return '';
+      return `## ${title}\n${lines.map(line => `- ${line}`).join('\n')}`;
+    }
+
+    function textBlock(title, value) {
+      const text = value.trim();
+      return text ? `## ${title}\n${text}` : '';
+    }
+
+    function syncCustomSelect(select) {
+      const customInput = $(`#${select.id}Custom`);
+      if (!customInput) return;
+
+      const isCustom = select.value === '__custom__';
+      customInput.classList.toggle('d-none', !isCustom);
+      customInput.disabled = !isCustom;
+
+      if (isCustom) {
+        customInput.focus();
+      } else {
+        customInput.value = '';
+      }
+    }
+
+    function updateRequiredState() {
+      const missing = requiredPromptFields.filter(item => !fieldValue(item.id));
+
+      requiredPromptFields.forEach(item => {
+        $(`#${item.id}`).classList.toggle('required-empty', !fieldValue(item.id));
+      });
+
+      if (missing.length) {
+        requiredStats.textContent = `Не заполнено: ${missing.length}`;
+        requiredStats.title = missing.map(item => item.label).join(', ');
+      } else {
+        requiredStats.textContent = 'Обязательные заполнены';
+        requiredStats.title = '';
+      }
+    }
+
+    function generatePrompt() {
+      const files = state.files
+        .map(item => ({
+          path: $(`#${item.pathId}`)?.value.trim(),
+          description: $(`#${item.descriptionId}`)?.value.trim()
+        }))
+        .filter(item => item.path || item.description)
+        .map(item => {
+          if (item.path && item.description) return `- \`${item.path}\` — ${item.description}`;
+          if (item.path) return `- \`${item.path}\``;
+          return `- ${item.description}`;
+        });
+
+      const constraints = [
+        ...checkedValues('constraintsBase'),
+        ...customValues(state.customConstraints)
+      ];
+
+      const styles = [
+        ...checkedValues('styleBase'),
+        ...customValues(state.customStyles)
+      ];
+
+      const intro = [
+        'Ты — опытный инженер-программист. Помоги решить задачу по коду.',
+        'Сначала внимательно учитывай цель, контекст, требования, ограничения и стиль кода.'
+      ].join('\n');
+
+      const meta = [
+        fieldValue('projectType') ? `- Тип проекта: ${fieldValue('projectType')}` : '',
+        fieldValue('stack') ? `- Стек / окружение: ${fieldValue('stack')}` : ''
+      ].filter(Boolean);
+
+      const requirements = splitLines(fieldValue('requirements'));
+      const acceptance = splitLines(fieldValue('acceptance'));
+      const tests = splitLines(fieldValue('tests'));
+
+      const blocks = [
+        intro,
+        textBlock('Цель / задача', fieldValue('goal')),
+        linesBlock('Проект', meta),
+        textBlock('Текущее состояние', fieldValue('currentState')),
+        textBlock('Ожидаемый результат', fieldValue('desiredState')),
+        linesBlock('Файлы для контекста', files),
+        linesBlock('Требования', requirements),
+        linesBlock('Ограничения', constraints),
+        linesBlock('Стиль кода', styles),
+        linesBlock('Критерии приемки', acceptance),
+        linesBlock('Проверка и тесты', tests),
+        textBlock('Дополнительный контекст', fieldValue('extra')),
+        linesBlock('Формат ответа', [
+          `Верни: ${fieldValue('responseFormat')}`,
+          `Тон: ${fieldValue('tone')}`,
+          ...checkedValues('responseRules'),
+          ...customValues(state.customResponseRules)
+        ])
+      ].filter(Boolean);
+
+      promptOutput.value = blocks.join('\n\n');
+      promptStats.textContent = `${promptOutput.value.length.toLocaleString('ru-RU')} символов`;
+      updateRequiredState();
+    }
+
+    function renderChecks(items, containerId) {
+      const container = $(`#${containerId}`);
+      container.innerHTML = items.map(item => `
+        <div class="col-md-6">
+          <div class="form-check">
+            <input class="form-check-input prompt-field" type="checkbox" id="${item.id}" data-label="${escapeHtml(item.label)}" ${item.checked ? 'checked' : ''}>
+            <label class="form-check-label" for="${item.id}">${escapeHtml(item.label)}</label>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderFile(item) {
+      const node = document.createElement('div');
+      node.className = 'row-card';
+      node.dataset.itemId = item.id;
+      node.innerHTML = `
+        <div class="row g-2 align-items-start">
+          <div class="col-md-5">
+            <label class="form-label" for="${item.pathId}">Путь</label>
+            <input class="form-control prompt-field" id="${item.pathId}" placeholder="src/services/report.ts">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="${item.descriptionId}">Краткое описание</label>
+            <input class="form-control prompt-field" id="${item.descriptionId}" placeholder="логика генерации отчета">
+          </div>
+          <div class="col-md-1 d-flex justify-content-md-end pt-md-4">
+            <button class="btn btn-outline-danger btn-icon mt-md-2" type="button" title="Удалить" aria-label="Удалить"><i class="bi bi-x-lg"></i></button>
+          </div>
+        </div>
+      `;
+      $('button', node).addEventListener('click', () => {
+        state.files = state.files.filter(file => file.id !== item.id);
+        node.remove();
+        generatePrompt();
+      });
+      $('#filesList').appendChild(node);
+    }
+
+    function addFile(path = '', description = '') {
+      const item = {
+        id: uid('file'),
+        pathId: uid('filePath'),
+        descriptionId: uid('fileDescription')
+      };
+      state.files.push(item);
+      renderFile(item);
+      $(`#${item.pathId}`).value = path;
+      $(`#${item.descriptionId}`).value = description;
+      generatePrompt();
+    }
+
+    function renderCustomInput(item, list, containerId, placeholder) {
+      const row = document.createElement('div');
+      row.className = 'input-group';
+      row.dataset.itemId = item.id;
+      row.innerHTML = `
+        <input class="form-control prompt-field" id="${item.inputId}" placeholder="${placeholder}">
+        <button class="btn btn-outline-danger btn-icon" type="button" title="Удалить" aria-label="Удалить"><i class="bi bi-x-lg"></i></button>
+      `;
+      $('button', row).addEventListener('click', () => {
+        const index = list.findIndex(entry => entry.id === item.id);
+        if (index >= 0) list.splice(index, 1);
+        row.remove();
+        generatePrompt();
+      });
+      $(`#${containerId}`).appendChild(row);
+    }
+
+    function addCustom(list, containerId, placeholder) {
+      const item = { id: uid('custom'), inputId: uid('customInput') };
+      list.push(item);
+      renderCustomInput(item, list, containerId, placeholder);
+      $(`#${item.inputId}`).focus();
+      generatePrompt();
+    }
+
+    function parseQuestions() {
+      $('#questionsRaw').classList.toggle('required-empty', !$('#questionsRaw').value.trim());
+
+      const questions = splitLines($('#questionsRaw').value)
+        .map(question => question.replace(/^\d+[\).\s-]+/, '').trim())
+        .filter(Boolean);
+
+      state.questions = questions.map(question => ({
+        id: uid('question'),
+        question,
+        answerId: uid('answer')
+      }));
+
+      renderQuestions();
+      generateAnswer();
+    }
+
+    function renderQuestions() {
+      const container = $('#questionsList');
+      if (!state.questions.length) {
+        container.innerHTML = '<div class="empty-state">Список ответов появится после разбора вопросов.</div>';
+        return;
+      }
+
+      container.innerHTML = '';
+      state.questions.forEach((item, index) => {
+        const block = document.createElement('div');
+        block.className = 'row-card';
+        block.innerHTML = `
+          <label class="form-label" for="${item.answerId}">${index + 1}. ${escapeHtml(item.question)}</label>
+          <textarea class="form-control answer-field" id="${item.answerId}" rows="3" placeholder="Ответ"></textarea>
+        `;
+        container.appendChild(block);
+      });
+    }
+
+    function generateAnswer() {
+      const pairs = state.questions.map(item => ({
+        question: item.question,
+        answer: $(`#${item.answerId}`)?.value.trim()
+      }));
+
+      const answered = pairs.filter(item => item.answer);
+      const extra = $('#answerExtra').value.trim();
+      const parts = [];
+
+      if (answered.length) {
+        parts.push(answered.map((item, index) => `${index + 1}. ${item.question}\nОтвет: ${item.answer}`).join('\n\n'));
+      }
+
+      if (extra) {
+        parts.push(`Дополнительно:\n${extra}`);
+      }
+
+      answerOutput.value = parts.join('\n\n').trim();
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    async function copyText(value, button) {
+      if (!value.trim()) return;
+      await navigator.clipboard.writeText(value);
+      const original = button.innerHTML;
+      button.innerHTML = '<i class="bi bi-check2"></i> Скопировано';
+      window.setTimeout(() => {
+        button.innerHTML = original;
+      }, 1300);
+    }
+
+    document.addEventListener('input', event => {
+      if (event.target.matches('.prompt-field')) generatePrompt();
+      if (event.target.id === 'questionsRaw') event.target.classList.toggle('required-empty', !event.target.value.trim());
+      if (event.target.matches('.answer-field') || event.target.id === 'answerExtra') generateAnswer();
+    });
+
+    document.addEventListener('change', event => {
+      if (event.target.matches('select.prompt-field')) {
+        syncCustomSelect(event.target);
+        generatePrompt();
+      }
+    });
+
+    $('#addFile').addEventListener('click', () => addFile());
+    $('#addConstraint').addEventListener('click', () => addCustom(state.customConstraints, 'customConstraints', 'Кастомное ограничение'));
+    $('#addStyle').addEventListener('click', () => addCustom(state.customStyles, 'customStyles', 'Кастомная просьба к стилю кода'));
+    $('#addResponseRule').addEventListener('click', () => addCustom(state.customResponseRules, 'customResponseRules', 'Кастомное правило формата ответа'));
+    $('#parseQuestions').addEventListener('click', parseQuestions);
+    $('#clearAnswers').addEventListener('click', () => {
+      $('#questionsRaw').value = '';
+      $('#answerExtra').value = '';
+      state.questions = [];
+      renderQuestions();
+      generateAnswer();
+    });
+    $('#copyPrompt').addEventListener('click', event => copyText(promptOutput.value, event.currentTarget));
+    $('#copyAnswer').addEventListener('click', event => copyText(answerOutput.value, event.currentTarget));
+
+    renderChecks(baseConstraints, 'constraintsBase');
+    renderChecks(baseStyles, 'styleBase');
+    addFile();
+    generatePrompt();
+  </script>
+</body>
+</html>
