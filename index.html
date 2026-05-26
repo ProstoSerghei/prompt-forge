@@ -568,6 +568,7 @@
             <div class="d-flex flex-wrap gap-2">
               <span class="token-badge" id="promptStats">0 символов</span>
               <span class="token-badge required-hint" id="requiredStats">3 поля</span>
+              <button class="btn btn-outline-soft" id="clearPrompt" type="button"><i class="bi bi-trash3"></i> Очистить форму</button>
               <button class="btn btn-outline-soft" id="copyPrompt" type="button"><i class="bi bi-clipboard"></i> Копировать</button>
             </div>
           </div>
@@ -576,6 +577,25 @@
       </div>
     </aside>
   </main>
+
+  <div class="modal fade" id="clearPromptModal" tabindex="-1" aria-labelledby="clearPromptModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg">
+      <div class="modal-content technical-panel">
+        <div class="modal-header border-secondary">
+          <h2 class="modal-title fs-5" id="clearPromptModalLabel">Очистить форму</h2>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body">
+          <div class="small muted mb-3">Отмеченные поля будут очищены. Снимите галочку с полей, которые нужно оставить.</div>
+          <div class="row g-2" id="clearPromptFields"></div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-outline-soft" data-bs-dismiss="modal">Отмена</button>
+          <button type="button" class="btn btn-accent" id="confirmClearPrompt"><i class="bi bi-trash3"></i> Очистить выбранное</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
@@ -615,6 +635,7 @@
     const promptStats = $('#promptStats');
     const requiredStats = $('#requiredStats');
     const answerOutput = $('#answerOutput');
+    let clearPromptItems = [];
     const requiredPromptFields = [
       { id: 'goal', label: 'цель' },
       { id: 'desiredState', label: 'ожидаемый результат' },
@@ -943,6 +964,117 @@
       generatePrompt();
     }
 
+    function resetField(id) {
+      const field = $(`#${id}`);
+      if (!field) return;
+
+      if (field.matches('select')) {
+        field.selectedIndex = 0;
+      } else {
+        field.value = '';
+      }
+    }
+
+    function shouldShowCustomSelectField(selectId, inputId) {
+      const select = $(`#${selectId}`);
+      return select?.value === '__custom__' || Boolean(fieldValue(inputId));
+    }
+
+    function removeDynamicItem(list, containerId, item) {
+      const index = list.findIndex(entry => entry.id === item.id);
+      if (index >= 0) list.splice(index, 1);
+      $(`#${containerId} [data-item-id="${item.id}"]`)?.remove();
+    }
+
+    function buildClearPromptItems() {
+      const items = [];
+      const addItem = (label, clear) => items.push({ id: uid('clear'), label, clear });
+      const addField = (id, label) => {
+        if ($(`#${id}`)) addItem(label, () => resetField(id));
+      };
+      const addCheckboxes = (containerId, groupLabel) => {
+        $$('input[type="checkbox"].prompt-field', $(`#${containerId}`)).forEach(input => {
+          const label = $(`label[for="${input.id}"]`)?.textContent.trim() || input.dataset.label || input.id;
+          addItem(`${groupLabel}: ${label}`, () => {
+            input.checked = input.defaultChecked;
+          });
+        });
+      };
+      const addDynamicInputs = (list, containerId, label) => {
+        list.forEach((item, index) => {
+          const value = $(`#${item.inputId}`)?.value.trim();
+          addItem(`${label} ${index + 1}${value ? `: ${value}` : ''}`, () => removeDynamicItem(list, containerId, item));
+        });
+      };
+
+      addField('goal', 'Цель и задача: Что нужно сделать');
+      addField('projectType', 'Цель и задача: Тип проекта');
+      if (shouldShowCustomSelectField('projectType', 'projectTypeCustom')) {
+        addField('projectTypeCustom', 'Цель и задача: свой тип проекта');
+      }
+      addField('stack', 'Цель и задача: Стек / окружение');
+      addField('currentState', 'Цель и задача: Текущее состояние');
+      addField('desiredState', 'Цель и задача: Ожидаемый результат');
+
+      state.files.forEach((item, index) => {
+        const path = $(`#${item.pathId}`)?.value.trim();
+        addItem(`Файл для контекста ${index + 1}${path ? `: ${path}` : ''}`, () => removeDynamicItem(state.files, 'filesList', item));
+      });
+
+      addField('requirements', 'Требования: Функциональные требования');
+      addField('acceptance', 'Требования: Критерии приемки');
+      addField('tests', 'Требования: Проверка и тесты');
+      addCheckboxes('constraintsBase', 'Ограничение');
+      addDynamicInputs(state.customConstraints, 'customConstraints', 'Кастомное ограничение');
+      addCheckboxes('styleBase', 'Стиль кода');
+      addDynamicInputs(state.customStyles, 'customStyles', 'Кастомная просьба к стилю кода');
+      addField('responseFormat', 'Формат результата: Что вернуть в ответе');
+      if (shouldShowCustomSelectField('responseFormat', 'responseFormatCustom')) {
+        addField('responseFormatCustom', 'Формат результата: свой формат ответа');
+      }
+      addField('tone', 'Формат результата: Тон ответа');
+      if (shouldShowCustomSelectField('tone', 'toneCustom')) {
+        addField('toneCustom', 'Формат результата: свой тон ответа');
+      }
+      addCheckboxes('responseRules', 'Правило ответа');
+      addDynamicInputs(state.customResponseRules, 'customResponseRules', 'Кастомное правило ответа');
+      addField('extra', 'Формат результата: Дополнительный контекст');
+
+      return items;
+    }
+
+    function openClearPromptModal() {
+      clearPromptItems = buildClearPromptItems();
+      $('#clearPromptFields').innerHTML = clearPromptItems.map(item => `
+        <div class="col-md-6">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="${item.id}" value="${item.id}" checked>
+            <label class="form-check-label" for="${item.id}">${escapeHtml(item.label)}</label>
+          </div>
+        </div>
+      `).join('');
+      bootstrap.Modal.getOrCreateInstance($('#clearPromptModal')).show();
+    }
+
+    function clearSelectedPromptFields() {
+      const selectedIds = new Set(
+        $$('input[type="checkbox"]:checked', $('#clearPromptFields')).map(input => input.value)
+      );
+
+      clearPromptItems
+        .filter(item => selectedIds.has(item.id))
+        .forEach(item => item.clear());
+
+      $$('.custom-select-input').forEach(input => {
+        const owner = $(`#${input.dataset.selectOwner}`);
+        if (owner) syncCustomSelect(owner, false);
+      });
+
+      if (!state.files.length) addFile();
+      bootstrap.Modal.getOrCreateInstance($('#clearPromptModal')).hide();
+      generatePrompt();
+    }
+
     function currentLineInfo(field) {
       const value = field.value;
       const cursor = field.selectionStart;
@@ -1123,6 +1255,8 @@
     $('#addStyle').addEventListener('click', () => addCustom(state.customStyles, 'customStyles', 'Кастомная просьба к стилю кода'));
     $('#addResponseRule').addEventListener('click', () => addCustom(state.customResponseRules, 'customResponseRules', 'Кастомное правило формата ответа'));
     $('#parseQuestions').addEventListener('click', parseQuestions);
+    $('#clearPrompt').addEventListener('click', openClearPromptModal);
+    $('#confirmClearPrompt').addEventListener('click', clearSelectedPromptFields);
     $('#clearAnswers').addEventListener('click', () => {
       $('#questionsRaw').value = '';
       $('#answerExtra').value = '';
