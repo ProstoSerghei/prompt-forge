@@ -648,12 +648,23 @@
         .filter(Boolean);
     }
 
+    function splitContentLines(value) {
+      return value
+        .split('\n')
+        .map(line => line.trimEnd())
+        .filter(line => line.trim());
+    }
+
     function fieldValue(id) {
       const field = $(`#${id}`);
       if (field?.tagName === 'SELECT' && field.value === '__custom__') {
         return $(`#${id}Custom`)?.value.trim() || '';
       }
       return field?.value.trim() || '';
+    }
+
+    function rawFieldValue(id) {
+      return $(`#${id}`)?.value || '';
     }
 
     function checkedValues(containerId) {
@@ -744,7 +755,7 @@
 
     function linesBlock(title, lines) {
       if (!lines.length) return '';
-      return `## ${title}\n${lines.map(line => `- ${line}`).join('\n')}`;
+      return `## ${title}\n${lines.map(line => line.trimEnd()).join('\n')}`;
     }
 
     function textBlock(title, value) {
@@ -789,9 +800,9 @@
         }))
         .filter(item => item.path || item.description)
         .map(item => {
-          if (item.path && item.description) return `- \`${item.path}\` — ${item.description}`;
-          if (item.path) return `- \`${item.path}\``;
-          return `- ${item.description}`;
+          if (item.path && item.description) return `\`${item.path}\` — ${item.description}`;
+          if (item.path) return `\`${item.path}\``;
+          return item.description;
         });
 
       const constraints = [
@@ -810,13 +821,13 @@
       ].join('\n');
 
       const meta = [
-        fieldValue('projectType') ? `- Тип проекта: ${fieldValue('projectType')}` : '',
-        fieldValue('stack') ? `- Стек / окружение: ${fieldValue('stack')}` : ''
+        fieldValue('projectType') ? `Тип проекта: ${fieldValue('projectType')}` : '',
+        fieldValue('stack') ? `Стек / окружение: ${fieldValue('stack')}` : ''
       ].filter(Boolean);
 
-      const requirements = splitLines(fieldValue('requirements'));
-      const acceptance = splitLines(fieldValue('acceptance'));
-      const tests = splitLines(fieldValue('tests'));
+      const requirements = splitContentLines(rawFieldValue('requirements'));
+      const acceptance = splitContentLines(rawFieldValue('acceptance'));
+      const tests = splitContentLines(rawFieldValue('tests'));
 
       const blocks = [
         intro,
