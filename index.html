@@ -605,6 +605,9 @@
       questions: []
     };
 
+    const STORAGE_KEY = 'promptForgeStateV1';
+    let isRestoring = false;
+
     const $ = (selector, root = document) => root.querySelector(selector);
     const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 
@@ -616,6 +619,22 @@
       { id: 'goal', label: 'цель' },
       { id: 'desiredState', label: 'ожидаемый результат' },
       { id: 'requirements', label: 'требования' }
+    ];
+    const savedFieldIds = [
+      'goal',
+      'projectType',
+      'projectTypeCustom',
+      'stack',
+      'currentState',
+      'desiredState',
+      'requirements',
+      'acceptance',
+      'tests',
+      'responseFormat',
+      'responseFormatCustom',
+      'tone',
+      'toneCustom',
+      'extra'
     ];
 
     function uid(prefix) {
@@ -649,6 +668,80 @@
         .filter(Boolean);
     }
 
+    function hasOwn(object, key) {
+      return Object.prototype.hasOwnProperty.call(object, key);
+    }
+
+    function readSavedState() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || null;
+      } catch (error) {
+        console.warn('Не удалось прочитать сохраненное состояние', error);
+        return null;
+      }
+    }
+
+    function writeSavedState() {
+      if (isRestoring) return;
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(collectSavedState()));
+      } catch (error) {
+        console.warn('Не удалось сохранить состояние', error);
+      }
+    }
+
+    function collectSavedState() {
+      return {
+        fields: Object.fromEntries(
+          savedFieldIds.map(id => [id, $(`#${id}`)?.value || ''])
+        ),
+        checkboxes: Object.fromEntries(
+          $$('input[type="checkbox"].prompt-field[id]').map(input => [input.id, input.checked])
+        ),
+        files: state.files.map(item => ({
+          path: $(`#${item.pathId}`)?.value || '',
+          description: $(`#${item.descriptionId}`)?.value || ''
+        })),
+        customConstraints: customValues(state.customConstraints),
+        customStyles: customValues(state.customStyles),
+        customResponseRules: customValues(state.customResponseRules)
+      };
+    }
+
+    function restoreSavedState(savedState) {
+      if (!savedState) return false;
+
+      isRestoring = true;
+
+      savedFieldIds.forEach(id => {
+        const field = $(`#${id}`);
+        if (field && hasOwn(savedState.fields || {}, id)) {
+          field.value = savedState.fields[id] || '';
+        }
+      });
+
+      Object.entries(savedState.checkboxes || {}).forEach(([id, checked]) => {
+        const checkbox = $(`#${id}`);
+        if (checkbox?.matches('input[type="checkbox"]')) {
+          checkbox.checked = Boolean(checked);
+        }
+      });
+
+      (savedState.files || []).forEach(item => addFile(item.path || '', item.description || ''));
+      (savedState.customConstraints || []).forEach(value => addCustom(state.customConstraints, 'customConstraints', 'Кастомное ограничение', value, false));
+      (savedState.customStyles || []).forEach(value => addCustom(state.customStyles, 'customStyles', 'Кастомная просьба к стилю кода', value, false));
+      (savedState.customResponseRules || []).forEach(value => addCustom(state.customResponseRules, 'customResponseRules', 'Кастомное правило формата ответа', value, false));
+
+      $$('.custom-select-input').forEach(input => {
+        const owner = $(`#${input.dataset.selectOwner}`);
+        if (owner) syncCustomSelect(owner, false);
+      });
+
+      isRestoring = false;
+      return true;
+    }
+
     function linesBlock(title, lines) {
       if (!lines.length) return '';
       return `## ${title}\n${lines.map(line => `- ${line}`).join('\n')}`;
@@ -659,7 +752,7 @@
       return text ? `## ${title}\n${text}` : '';
     }
 
-    function syncCustomSelect(select) {
+    function syncCustomSelect(select, shouldFocus = true) {
       const customInput = $(`#${select.id}Custom`);
       if (!customInput) return;
 
@@ -667,10 +760,8 @@
       customInput.classList.toggle('d-none', !isCustom);
       customInput.disabled = !isCustom;
 
-      if (isCustom) {
+      if (isCustom && shouldFocus) {
         customInput.focus();
-      } else {
-        customInput.value = '';
       }
     }
 
@@ -751,6 +842,7 @@
       promptOutput.value = blocks.join('\n\n');
       promptStats.textContent = `${promptOutput.value.length.toLocaleString('ru-RU')} символов`;
       updateRequiredState();
+      writeSavedState();
     }
 
     function renderChecks(items, containerId) {
@@ -822,12 +914,96 @@
       $(`#${containerId}`).appendChild(row);
     }
 
-    function addCustom(list, containerId, placeholder) {
+    function addCustom(list, containerId, placeholder, value = '', shouldFocus = true) {
       const item = { id: uid('custom'), inputId: uid('customInput') };
       list.push(item);
       renderCustomInput(item, list, containerId, placeholder);
-      $(`#${item.inputId}`).focus();
+      $(`#${item.inputId}`).value = value;
+      if (shouldFocus) $(`#${item.inputId}`).focus();
       generatePrompt();
+    }
+
+    function currentLineInfo(field) {
+      const value = field.value;
+      const cursor = field.selectionStart;
+      const lineStart = value.lastIndexOf('\n', cursor - 1) + 1;
+      const nextBreak = value.indexOf('\n', cursor);
+      const lineEnd = nextBreak === -1 ? value.length : nextBreak;
+      const line = value.slice(lineStart, lineEnd);
+      const indent = line.match(/^ */)[0];
+
+      return { value, cursor, lineStart, lineEnd, line, indent };
+    }
+
+    function notifyFieldChanged(field) {
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    function insertAtSelection(field, text) {
+      const start = field.selectionStart;
+      const end = field.selectionEnd;
+      field.setRangeText(text, start, end, 'end');
+      notifyFieldChanged(field);
+    }
+
+    function handleTextareaBulletEnter(event) {
+      const field = event.target;
+      const { value, cursor, lineStart, lineEnd, line, indent } = currentLineInfo(field);
+      const content = line.slice(indent.length);
+      const isEmptyBullet = content === '- ' && cursor === lineEnd;
+
+      event.preventDefault();
+
+      if (isEmptyBullet) {
+        const prefixStart = lineStart + indent.length;
+        field.value = `${value.slice(0, prefixStart)}${value.slice(lineEnd)}`;
+        field.setSelectionRange(prefixStart, prefixStart);
+        notifyFieldChanged(field);
+        return;
+      }
+
+      const nextPrefix = content.startsWith('- ') ? `${indent}- ` : indent;
+      insertAtSelection(field, `\n${nextPrefix}`);
+    }
+
+    function handleRequirementsTab(event) {
+      const field = event.target;
+      const { value, lineStart } = currentLineInfo(field);
+      const start = field.selectionStart;
+      const end = field.selectionEnd;
+
+      event.preventDefault();
+
+      if (event.shiftKey) {
+        if (value.slice(lineStart, lineStart + 2) !== '  ') return;
+
+        field.value = `${value.slice(0, lineStart)}${value.slice(lineStart + 2)}`;
+        field.setSelectionRange(Math.max(lineStart, start - 2), Math.max(lineStart, end - 2));
+        notifyFieldChanged(field);
+        return;
+      }
+
+      field.value = `${value.slice(0, lineStart)}  ${value.slice(lineStart)}`;
+      field.setSelectionRange(start + 2, end + 2);
+      notifyFieldChanged(field);
+    }
+
+    function handleRequirementsKeydown(event) {
+      if (event.key === 'Tab') {
+        handleRequirementsTab(event);
+      }
+    }
+
+    function handleTextareaKeydown(event) {
+      if (!event.target.matches('textarea') || event.target.readOnly || event.target.disabled) return;
+
+      if (event.key === 'Enter') {
+        handleTextareaBulletEnter(event);
+      }
+
+      if (event.target.id === 'requirements') {
+        handleRequirementsKeydown(event);
+      }
     }
 
     function parseQuestions() {
@@ -917,7 +1093,10 @@
         syncCustomSelect(event.target);
         generatePrompt();
       }
+      if (event.target.matches('input[type="checkbox"].prompt-field')) generatePrompt();
     });
+
+    document.addEventListener('keydown', handleTextareaKeydown);
 
     $('#addFile').addEventListener('click', () => addFile());
     $('#addConstraint').addEventListener('click', () => addCustom(state.customConstraints, 'customConstraints', 'Кастомное ограничение'));
@@ -933,10 +1112,10 @@
     });
     $('#copyPrompt').addEventListener('click', event => copyText(promptOutput.value, event.currentTarget));
     $('#copyAnswer').addEventListener('click', event => copyText(answerOutput.value, event.currentTarget));
-
     renderChecks(baseConstraints, 'constraintsBase');
     renderChecks(baseStyles, 'styleBase');
-    addFile();
+    const hasSavedState = restoreSavedState(readSavedState());
+    if (!hasSavedState && !state.files.length) addFile();
     generatePrompt();
   </script>
 </body>
