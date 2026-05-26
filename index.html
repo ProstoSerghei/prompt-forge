@@ -758,6 +758,15 @@
       return `## ${title}\n${lines.map(line => line.trimEnd()).join('\n')}`;
     }
 
+    function dashedLinesBlock(title, lines) {
+      if (!lines.length) return '';
+      const dashedLines = lines.map(line => {
+        const text = line.trimEnd();
+        return text.startsWith('- ') ? text : `- ${text}`;
+      });
+      return linesBlock(title, dashedLines);
+    }
+
     function textBlock(title, value) {
       const text = value.trim();
       return text ? `## ${title}\n${text}` : '';
@@ -832,17 +841,17 @@
       const blocks = [
         intro,
         textBlock('Цель / задача', fieldValue('goal')),
-        linesBlock('Проект', meta),
+        dashedLinesBlock('Проект', meta),
         textBlock('Текущее состояние', fieldValue('currentState')),
         textBlock('Ожидаемый результат', fieldValue('desiredState')),
-        linesBlock('Файлы для контекста', files),
+        dashedLinesBlock('Файлы для контекста', files),
         linesBlock('Требования', requirements),
-        linesBlock('Ограничения', constraints),
-        linesBlock('Стиль кода', styles),
+        dashedLinesBlock('Ограничения', constraints),
+        dashedLinesBlock('Стиль кода', styles),
         linesBlock('Критерии приемки', acceptance),
         linesBlock('Проверка и тесты', tests),
         textBlock('Дополнительный контекст', fieldValue('extra')),
-        linesBlock('Формат ответа', [
+        dashedLinesBlock('Формат ответа', [
           `Верни: ${fieldValue('responseFormat')}`,
           `Тон: ${fieldValue('tone')}`,
           ...checkedValues('responseRules'),
