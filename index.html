@@ -300,6 +300,10 @@
       gap: 12px;
     }
 
+    .question-text {
+      white-space: pre-wrap;
+    }
+
     .answer-output {
       min-height: 160px;
       font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
@@ -536,7 +540,21 @@
           <section class="section-block">
             <div class="section-title"><i class="bi bi-question-square"></i> Вопросы</div>
             <label class="form-label" for="questionsRaw">Вставленные вопросы <span class="required-badge">обязательно</span></label>
-            <textarea class="form-control" id="questionsRaw" rows="8" required placeholder="Каждый вопрос с новой строки"></textarea>
+            <textarea class="form-control" id="questionsRaw" rows="8" required placeholder="Вставьте вопросы"></textarea>
+            <div class="row g-3 mt-1">
+              <div class="col-md-6">
+                <label class="form-label" for="questionSplitMode">Режим разбиения</label>
+                <select class="form-select" id="questionSplitMode">
+                  <option value="numbered">По нумерации 1., 2. ...</option>
+                  <option value="lines">Каждая новая строка</option>
+                  <option value="separator">По разделителю</option>
+                </select>
+              </div>
+              <div class="col-md-6 d-none" id="questionSeparatorGroup">
+                <label class="form-label" for="questionSeparator">Разделитель</label>
+                <input class="form-control" id="questionSeparator" placeholder="---">
+              </div>
+            </div>
             <div class="d-flex flex-wrap gap-2 mt-3">
               <button class="btn btn-accent" id="parseQuestions" type="button"><i class="bi bi-magic"></i> Разобрать</button>
               <button class="btn btn-outline-soft" id="clearAnswers" type="button"><i class="bi bi-trash3"></i> Очистить</button>
@@ -1273,9 +1291,7 @@
     function parseQuestions() {
       $('#questionsRaw').classList.toggle('required-empty', !$('#questionsRaw').value.trim());
 
-      const questions = splitLines($('#questionsRaw').value)
-        .map(question => question.replace(/^\d+[\).\s-]+/, '').trim())
-        .filter(Boolean);
+      const questions = splitQuestions($('#questionsRaw').value, $('#questionSplitMode').value);
 
       state.questions = questions.map(question => ({
         id: uid('question'),
@@ -1285,6 +1301,61 @@
 
       renderQuestions();
       generateAnswer();
+    }
+
+    function splitQuestions(value, mode) {
+      if (mode === 'separator') return splitQuestionsBySeparator(value);
+      if (mode === 'lines') return splitQuestionsByLine(value);
+      return splitQuestionsByNumbering(value);
+    }
+
+    function normalizeQuestion(value) {
+      return value.replace(/^\s*\d+[\).\s-]+/, '').trim();
+    }
+
+    function removeTrailingSectionTitle(value) {
+      const match = value.match(/(\n\s*\n)([^\n:;.!?]+)\s*$/);
+      if (!match) return value;
+
+      const title = match[2].trim();
+      const looksLikeSectionTitle = title.length <= 80 && !title.startsWith('- ');
+      return looksLikeSectionTitle ? value.slice(0, match.index).trimEnd() : value;
+    }
+
+    function splitQuestionsByLine(value) {
+      return splitLines(value)
+        .map(normalizeQuestion)
+        .filter(Boolean);
+    }
+
+    function splitQuestionsBySeparator(value) {
+      const separator = $('#questionSeparator').value.trim() || '---';
+      return value
+        .split(separator)
+        .map(normalizeQuestion)
+        .filter(Boolean);
+    }
+
+    function splitQuestionsByNumbering(value) {
+      const questions = [];
+      let current = [];
+
+      value.split('\n').forEach(line => {
+        if (/^\s*\d+[\).\s-]+/.test(line) && current.some(part => part.trim())) {
+          questions.push(current.join('\n'));
+          current = [];
+        }
+        current.push(line);
+      });
+
+      if (current.some(part => part.trim())) {
+        questions.push(current.join('\n'));
+      }
+
+      return questions
+        .map(removeTrailingSectionTitle)
+        .map(normalizeQuestion)
+        .filter(Boolean);
     }
 
     function renderQuestions() {
@@ -1299,7 +1370,7 @@
         const block = document.createElement('div');
         block.className = 'row-card';
         block.innerHTML = `
-          <label class="form-label" for="${item.answerId}">${index + 1}. ${escapeHtml(item.question)}</label>
+          <label class="form-label question-text" for="${item.answerId}">${index + 1}. ${escapeHtml(item.question)}</label>
           <textarea class="form-control answer-field" id="${item.answerId}" rows="3" placeholder="Ответ"></textarea>
         `;
         container.appendChild(block);
@@ -1358,6 +1429,9 @@
         generatePrompt();
       }
       if (event.target.matches('input[type="checkbox"].prompt-field')) generatePrompt();
+      if (event.target.id === 'questionSplitMode') {
+        $('#questionSeparatorGroup').classList.toggle('d-none', event.target.value !== 'separator');
+      }
     });
 
     document.addEventListener('keydown', handleTextareaKeydown);
